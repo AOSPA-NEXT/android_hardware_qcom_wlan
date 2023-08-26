@@ -449,11 +449,15 @@ void NanCommand::NanErrorTranslation(NanInternalStatusType firmwareErrorRecvd,
 
 int NanCommand::getNanResponse(transaction_id *id, NanResponseMsg *pRsp)
 {
+    NanCommand *t_nanCommand = NULL;
+    hal_info *info = getHalInfo(wifiHandle());
+
     if (mNanVendorEvent == NULL || pRsp == NULL) {
         ALOGE("NULL check failed");
         return WIFI_ERROR_INVALID_ARGS;
     }
 
+    t_nanCommand = NanCommand::instance(wifiHandle());
     NanMsgHeader *pHeader = (NanMsgHeader *)mNanVendorEvent;
 
     switch (pHeader->msgId) {
@@ -495,6 +499,8 @@ int NanCommand::getNanResponse(transaction_id *id, NanResponseMsg *pRsp)
             pRsp->response_type = NAN_RESPONSE_PUBLISH;
             pRsp->body.publish_response.publish_id = \
                 pFwRsp->fwHeader.handle;
+            if (info && info->secure_nan)
+                info->secure_nan->pub_sub_id = pFwRsp->fwHeader.handle;
             break;
         }
         case NAN_MSG_ID_SUBSCRIBE_SERVICE_RSP:
@@ -506,6 +512,8 @@ int NanCommand::getNanResponse(transaction_id *id, NanResponseMsg *pRsp)
             pRsp->response_type = NAN_RESPONSE_SUBSCRIBE;
             pRsp->body.subscribe_response.subscribe_id = \
                 pFwRsp->fwHeader.handle;
+            if (info && info->secure_nan)
+                info->secure_nan->pub_sub_id = pFwRsp->fwHeader.handle;
         }
         break;
         case NAN_MSG_ID_SUBSCRIBE_SERVICE_CANCEL_RSP:
@@ -525,7 +533,11 @@ int NanCommand::getNanResponse(transaction_id *id, NanResponseMsg *pRsp)
                 (pNanTransmitFollowupRspMsg)mNanVendorEvent;
             *id = (transaction_id)pFwRsp->fwHeader.transactionId;
             NanErrorTranslation((NanInternalStatusType)pFwRsp->status, pFwRsp->value, pRsp, false);
-            pRsp->response_type = NAN_RESPONSE_TRANSMIT_FOLLOWUP;
+            if (t_nanCommand && t_nanCommand->getNanResponseMsg(*id, pRsp) == 0) {
+                ALOGV("Received saved trans_id = %d, response type = %d", *id, pRsp->response_type);
+            } else {
+                pRsp->response_type = NAN_RESPONSE_TRANSMIT_FOLLOWUP;
+            }
             break;
         }
         case NAN_MSG_ID_STATS_RSP:
@@ -651,6 +663,8 @@ int NanCommand::getNanResponse(transaction_id *id, NanResponseMsg *pRsp)
                 mNanCommandInstance->mNanMaxSubscribes = pFwRsp->max_subscribes;
                 mNanCommandInstance->reallocSvcParams(NAN_ROLE_SUBSCRIBER);
             }
+            pRsp->body.nan_capabilities.is_pairing_supported = \
+                       pFwRsp->nan_pairing_supported;
 
             break;
         }
@@ -702,6 +716,19 @@ int NanCommand::handleNanResponse()
     if (ret == 0 && mHandler.NotifyResponse) {
         (*mHandler.NotifyResponse)(id, &rsp_data);
     }
+
+    // Handle Bootstrapping confirm indication for bootstrapping responder role
+    if (rsp_data.response_type == NAN_BOOTSTRAPPING_RESPONDER_RESPONSE) {
+        NanBootstrappingConfirmInd bootstrapConfirmInd;
+
+        memset(&bootstrapConfirmInd, 0, sizeof(NanBootstrappingConfirmInd));
+        bootstrapConfirmInd.bootstrapping_instance_id =
+         rsp_data.body.bootstrapping_request_response.bootstrapping_instance_id;
+        bootstrapConfirmInd.reason_code = NAN_STATUS_SUCCESS;
+
+        handleNanBootstrappingConfirm(&bootstrapConfirmInd);
+    }
+
     return ret;
 }
 
@@ -998,6 +1025,12 @@ int NanCommand::handleNdpResponse(NanResponseType ndpCmdType,
         rsp_data.body.data_request_response.ndp_instance_id =
         nla_get_u32(tb_vendor[QCA_WLAN_VENDOR_ATTR_NDP_INSTANCE_ID]);
     }
+
+    // transaction id will be zero for NL80211_CMD_DEL_INTERFACE.
+    // get transaction id from wifihal nan instance.
+    if (!id && ndpCmdType == NAN_DP_INTERFACE_DELETE)
+        id = mNanCommandInstance->getTransactionId();
+
     //Call the NotifyResponse Handler
     if (mHandler.NotifyResponse) {
         (*mHandler.NotifyResponse)(id, &rsp_data);
