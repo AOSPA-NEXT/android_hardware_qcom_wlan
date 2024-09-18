@@ -1,0 +1,120 @@
+// Copyright (C) 2011 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+NAN_VENDOR_AIDL = ["y"]
+
+// Control APIs used by clients to communicate with HAL.
+// ============================================================
+cc_library_shared {
+    name: "libwifi-hal-ctrl",
+
+    cflags: ["-Wno-unused-parameter"] + [
+        "-Wall",
+        "-Werror",
+    ],
+    vendor: true,
+    local_include_dirs: ["wifi_hal_ctrl"],
+    srcs: ["wifi_hal_ctrl/wifi_hal_ctrl.c"],
+    header_libs: ["libcutils_headers"],
+}
+
+cc_library_headers {
+    name: "libwifi-hal-ctrl_headers",
+    vendor: true,
+    export_include_dirs: ["wifi_hal_ctrl"],
+    header_libs: ["libcutils_headers"],
+}
+
+// Make the HAL library
+// ============================================================
+
+cc_library {
+    name: "libwifi-hal-qcom",
+
+    cflags: [
+        "-Wno-unused-parameter",
+        "-DWCNSS_QTI_AOSP",
+        "-DCONFIG_NAN_VENDOR_AIDL",
+        "-DWPA_PASN_LIB",
+        "-DCONFIG_PASN",
+        "-DCONFIG_PTKSA_CACHE",
+        "-DCONFIG_SAE",
+        "-DCONFIG_FILS",
+        "-DCONFIG_IEEE80211R",
+        "-DIEEE8021X_EAPOL",
+        "-DCONFIG_NO_RANDOM_POOL",
+        "-DWIFI_DRIVER_STATE_CTRL_PARAM=\"/dev/wlan\"",
+        "-DWIFI_DRIVER_STATE_ON=\"ON\"",
+    ],
+
+    product_variables: {
+        debuggable: {
+            // Only enable debug logging in userdebug/eng builds.
+            cflags: ["-DLOG_NDEBUG=0"],
+        },
+    },
+
+    cppflags: [
+        "-Wno-conversion-null",
+        "-Wno-pointer-bool-conversion",
+    ],
+
+    include_dirs: [
+        "external/wpa_supplicant_8/src",
+        "external/wpa_supplicant_8/src/common",
+        "external/wpa_supplicant_8/src/drivers",
+        "external/wpa_supplicant_8/src/l2_packet",
+        "external/wpa_supplicant_8/src/utils",
+        "external/wpa_supplicant_8/src/wps",
+        "external/wpa_supplicant_8/src/ap",
+        "external/wpa_supplicant_8/wpa_supplicant",
+    ],
+
+    local_include_dirs: [
+        ".",
+        "vendor_nan",
+    ],
+
+    srcs: [
+        "**/*.cpp",
+    ],
+
+    vendor: true,
+    clang: true,
+    shared_libs: [
+        "libnetutils",
+        "liblog",
+        "libcld80211",
+        "libcrypto",
+        "libcutils",
+        "libpasn",
+        "libnl",
+        "wifi_legacy",
+    ],
+
+    header_libs: [
+        "libcutils_headers",
+        "libutils_headers",
+        "libwifi-hal-ctrl_headers",
+        "libcld80211_headers",
+    ],
+
+    sanitize: {
+        cfi: true,
+        misc_undefined: [
+            "signed-integer-overflow",
+            "unsigned-integer-overflow",
+        ],
+    },
+}
