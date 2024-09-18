@@ -1,0 +1,30 @@
+
+
+// =================================
+// copy header
+// =================================
+cc_library_headers {
+    name: "libcld80211_headers",
+    export_include_dirs: ["."],
+    vendor: true,
+}
+
+cc_library_shared {
+    name: "libcld80211",
+    clang: true,
+    include_dirs: ["external/libnl/include"],
+    local_include_dirs: ["."],
+    shared_libs: [
+        "libcutils",
+        "libnl",
+        "liblog",
+    ],
+    srcs: ["cld80211_lib.c"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-unused-parameter",
+    ],
+    header_libs: ["libcld80211_headers"],
+    vendor: true,
+}
