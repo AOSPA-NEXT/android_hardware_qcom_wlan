@@ -39,8 +39,8 @@ cc_library_headers {
 // Make the HAL library
 // ============================================================
 
-cc_library {
-    name: "libwifi-hal-qcom",
+cc_library_static {
+    name: "libwifi-hal-qcom-static",
 
     cflags: [
         "-Wno-unused-parameter",
@@ -117,4 +117,17 @@ cc_library {
             "unsigned-integer-overflow",
         ],
     },
+}
+
+cc_defaults {
+    name: "libwifi-hal-qcom",
+    whole_static_libs: [
+        "libwifi-hal-qcom-static",
+    ],
+    shared_libs: [
+        "libcld80211",
+        "libcrypto",
+        "libpasn",
+        "libnl",
+    ],
 }
